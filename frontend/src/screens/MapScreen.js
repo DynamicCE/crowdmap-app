@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapboxGL from '@rnmapbox/maps';
 import * as Location from 'expo-location';
 import { FAB } from 'react-native-elements';
 import LocationService from '../services/LocationService';
 import CategoryFilter from '../components/CategoryFilter';
+import { MAPBOX_ACCESS_TOKEN } from '@env';
+
+// Mapbox token from .env
+MapboxGL.setAccessToken(MAPBOX_ACCESS_TOKEN || '');
 
 export default function MapScreen({ navigation }) {
-  const [region, setRegion] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
   const [locations, setLocations] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [region, setRegion] = useState({
+    latitude: 41.0082,
+    longitude: 28.9784,
+    zoom: 12
+  });
 
   useEffect(() => {
     getCurrentLocation();
@@ -30,11 +39,12 @@ export default function MapScreen({ navigation }) {
       }
 
       const location = await Location.getCurrentPositionAsync({});
+      const coords = [location.coords.longitude, location.coords.latitude];
+      setUserLocation(coords);
       setRegion({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
+        zoom: 14
       });
     } catch (error) {
       Alert.alert('Hata', 'Konum alınamadı');
@@ -44,8 +54,6 @@ export default function MapScreen({ navigation }) {
   };
 
   const loadLocations = async () => {
-    if (!region) return;
-
     try {
       const params = {
         lat: region.latitude,
@@ -62,6 +70,17 @@ export default function MapScreen({ navigation }) {
 
   const handleMarkerPress = (location) => {
     navigation.navigate('LocationDetail', { locationId: location.id });
+  };
+
+  const onRegionDidChange = async (feature) => {
+    const { geometry, properties } = feature;
+    if (geometry && geometry.coordinates) {
+      setRegion({
+        longitude: geometry.coordinates[0],
+        latitude: geometry.coordinates[1],
+        zoom: properties.zoomLevel
+      });
+    }
   };
 
   const getCategoryColor = (categoryId) => {
@@ -88,28 +107,46 @@ export default function MapScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <MapView
-        provider={PROVIDER_GOOGLE}
+      <MapboxGL.MapView 
         style={styles.map}
-        region={region}
-        onRegionChangeComplete={setRegion}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
+        styleURL={MapboxGL.StyleURL.Street}
+        onRegionDidChange={onRegionDidChange}
+        zoomEnabled={true}
+        scrollEnabled={true}
+        pitchEnabled={false}
+        rotateEnabled={false}
       >
-        {locations.map((location) => (
-          <Marker
-            key={location.id}
-            coordinate={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-            }}
-            title={location.title}
-            description={location.description}
-            pinColor={getCategoryColor(location.category?.id)}
-            onPress={() => handleMarkerPress(location)}
+        <MapboxGL.Camera
+          centerCoordinate={userLocation || [region.longitude, region.latitude]}
+          zoomLevel={region.zoom}
+          animationMode="flyTo"
+          animationDuration={2000}
+        />
+
+        {userLocation && (
+          <MapboxGL.UserLocation 
+            visible={true}
+            showsUserHeadingIndicator={true}
           />
+        )}
+
+        {locations.map((location) => (
+          <MapboxGL.PointAnnotation
+            key={location.id}
+            id={location.id.toString()}
+            coordinate={[location.longitude, location.latitude]}
+            onSelected={() => handleMarkerPress(location)}
+          >
+            <View style={[
+              styles.markerContainer,
+              { backgroundColor: getCategoryColor(location.category?.id) }
+            ]}>
+              <View style={styles.marker} />
+            </View>
+            <MapboxGL.Callout title={location.title} />
+          </MapboxGL.PointAnnotation>
         ))}
-      </MapView>
+      </MapboxGL.MapView>
 
       <CategoryFilter
         selectedCategory={selectedCategory}
@@ -120,7 +157,12 @@ export default function MapScreen({ navigation }) {
         placement="right"
         color="#2196F3"
         icon={{ name: 'add', color: '#fff' }}
-        onPress={() => navigation.navigate('AddLocation', { currentLocation: region })}
+        onPress={() => navigation.navigate('AddLocation', { 
+          currentLocation: {
+            latitude: region.latitude,
+            longitude: region.longitude
+          }
+        })}
       />
     </View>
   );
@@ -137,5 +179,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  markerContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  marker: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'white',
   },
 });

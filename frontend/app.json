@@ -16,10 +16,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.crowdmap.app",
-      "config": {
-        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_KEY"
-      }
+      "bundleIdentifier": "com.crowdmap.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,11 +24,6 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.crowdmap.app",
-      "config": {
-        "googleMaps": {
-          "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_KEY"
-        }
-      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
